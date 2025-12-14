@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/tauri";
-import "./App.css";
 
 interface AppState {
   isConnected: boolean;
@@ -70,40 +69,46 @@ function App() {
   };
 
   return (
-    <div className="container">
-      <h1>AcceptMe - League Auto Accept</h1>
+    <div className="flex flex-col items-center justify-center min-h-screen p-8 bg-gradient-to-br from-indigo-500 via-purple-500 to-purple-600 text-white font-sans">
+      <h1 className="mb-8 text-4xl text-center drop-shadow-lg">
+        AcceptMe - League Auto Accept
+      </h1>
       
-      <div className="status-card">
-        <div className="status-item">
-          <span className="label">Connection:</span>
-          <span className={`value ${state.isConnected ? "connected" : "disconnected"}`}>
+      <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 mb-8 min-w-[400px] shadow-2xl border border-white/20">
+        <div className="flex justify-between items-center mb-4 text-lg last:mb-0">
+          <span className="font-semibold opacity-90">Connection:</span>
+          <span className={`font-medium ${state.isConnected ? "text-green-400" : "text-red-400"}`}>
             {state.isConnected ? "✓ Connected" : "✗ Disconnected"}
           </span>
         </div>
         
-        <div className="status-item">
-          <span className="label">Status:</span>
-          <span className="value">{state.status}</span>
+        <div className="flex justify-between items-center mb-4 text-lg last:mb-0">
+          <span className="font-semibold opacity-90">Status:</span>
+          <span className="font-medium">{state.status}</span>
         </div>
         
         {state.matchFound && (
-          <div className="match-found">
+          <div className="mt-4 p-4 bg-green-500/20 rounded-lg text-center font-semibold text-xl animate-pulse">
             🎮 Match Found! Auto-accepting...
           </div>
         )}
       </div>
 
       <button
-        className={`control-button ${state.isRunning ? "stop" : "start"}`}
+        className={`px-8 py-4 text-xl font-semibold border-none rounded-xl cursor-pointer transition-all duration-300 shadow-lg min-w-[200px] ${
+          state.isRunning
+            ? "bg-red-500 hover:bg-red-600 hover:-translate-y-0.5 hover:shadow-red-500/40"
+            : "bg-green-500 hover:bg-green-600 hover:-translate-y-0.5 hover:shadow-green-500/40"
+        } disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0`}
         onClick={toggleAutoAccept}
         disabled={!state.isConnected && !state.isRunning}
       >
         {state.isRunning ? "Stop Auto Accept" : "Start Auto Accept"}
       </button>
 
-      <div className="info">
-        <p>Make sure League of Legends client is running</p>
-        <p>The app will automatically detect and connect to your client</p>
+      <div className="mt-8 text-center opacity-80 text-sm">
+        <p className="my-2">Make sure League of Legends client is running</p>
+        <p className="my-2">The app will automatically detect and connect to your client</p>
       </div>
     </div>
   );
