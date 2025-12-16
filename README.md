@@ -6,22 +6,21 @@ An application that automatically accepts League of Legends matches when found, 
 
 - 🎮 Automatic connection to League of Legends client
 - ✅ Auto-accept matches when found
-- 🖥️ Modern React + Tauri UI
-- 🐍 Python backend for League client interaction
+- 🖥️ Modern React + Tauri UI with Tailwind CSS
+- ⚡ Fast Rust backend
 - 📊 Real-time status updates
 
 ## Tech Stack
 
-- **Frontend**: React + TypeScript + Vite
+- **Frontend**: React + TypeScript + Vite + Tailwind CSS
 - **Desktop Framework**: Tauri (Rust)
-- **Backend**: Python (for League client API interaction)
+- **Backend**: Rust (native, no dependencies)
 - **League API**: LCU (League Client Update) API
 
 ## Prerequisites
 
 - Node.js (v18 or higher)
-- Rust (latest stable)
-- Python 3.8+
+- Rust (latest stable) - Install from [rustup.rs](https://rustup.rs/)
 - League of Legends client installed
 
 ## Installation
@@ -31,13 +30,7 @@ An application that automatically accepts League of Legends matches when found, 
 npm install
 ```
 
-2. Install Python dependencies:
-```bash
-cd python_backend
-pip install -r requirements.txt
-```
-
-3. Install Tauri CLI (if not already installed):
+2. Install Tauri CLI (if not already installed):
 ```bash
 npm install -g @tauri-apps/cli
 ```

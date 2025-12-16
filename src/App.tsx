@@ -15,18 +15,34 @@ function App() {
     status: "Initializing...",
     matchFound: false,
   });
+  const [delaySeconds, setDelaySeconds] = useState(0);
 
   useEffect(() => {
-    // Check connection status on mount
     checkConnection();
-    
-    // Set up interval to check status
+    loadDelay();
     const interval = setInterval(() => {
       updateStatus();
     }, 2000);
-
     return () => clearInterval(interval);
   }, []);
+
+  const loadDelay = async () => {
+    try {
+      const delay = await invoke<number>("get_accept_delay");
+      setDelaySeconds(delay);
+    } catch (error) {
+      console.error("Error loading delay:", error);
+    }
+  };
+
+  const handleDelayChange = async (newDelay: number) => {
+    setDelaySeconds(newDelay);
+    try {
+      await invoke("set_accept_delay", { delaySeconds: newDelay });
+    } catch (error) {
+      console.error("Error setting delay:", error);
+    }
+  };
 
   const checkConnection = async () => {
     try {
@@ -69,50 +85,141 @@ function App() {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-8 bg-gradient-to-br from-indigo-500 via-purple-500 to-purple-600 text-white font-sans">
-      <h1 className="mb-8 text-4xl text-center drop-shadow-lg">
-        AcceptMe - League Auto Accept
-      </h1>
-      
-      <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 mb-8 min-w-[400px] shadow-2xl border border-white/20">
-        <div className="flex justify-between items-center mb-4 text-lg last:mb-0">
-          <span className="font-semibold opacity-90">Connection:</span>
-          <span className={`font-medium ${state.isConnected ? "text-green-400" : "text-red-400"}`}>
-            {state.isConnected ? "✓ Connected" : "✗ Disconnected"}
-          </span>
-        </div>
-        
-        <div className="flex justify-between items-center mb-4 text-lg last:mb-0">
-          <span className="font-semibold opacity-90">Status:</span>
-          <span className="font-medium">{state.status}</span>
-        </div>
-        
-        {state.matchFound && (
-          <div className="mt-4 p-4 bg-green-500/20 rounded-lg text-center font-semibold text-xl animate-pulse">
-            🎮 Match Found! Auto-accepting...
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-6">
+      <div className="w-full max-w-md space-y-6">
+        {/* Header */}
+        <div className="text-center space-y-2">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-500 to-pink-500 shadow-lg shadow-purple-500/50 mb-4">
+            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
           </div>
-        )}
-      </div>
+          <h1 className="text-3xl font-bold text-white">AcceptMe</h1>
+          <p className="text-slate-400 text-sm">Auto-accept League matches</p>
+        </div>
 
-      <button
-        className={`px-8 py-4 text-xl font-semibold border-none rounded-xl cursor-pointer transition-all duration-300 shadow-lg min-w-[200px] ${
-          state.isRunning
-            ? "bg-red-500 hover:bg-red-600 hover:-translate-y-0.5 hover:shadow-red-500/40"
-            : "bg-green-500 hover:bg-green-600 hover:-translate-y-0.5 hover:shadow-green-500/40"
-        } disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0`}
-        onClick={toggleAutoAccept}
-        disabled={!state.isConnected && !state.isRunning}
-      >
-        {state.isRunning ? "Stop Auto Accept" : "Start Auto Accept"}
-      </button>
+        {/* Status Card */}
+        <div className="bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 p-6 shadow-2xl">
+          {/* Connection Status */}
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <div className={`w-3 h-3 rounded-full ${state.isConnected ? 'bg-emerald-400 shadow-lg shadow-emerald-400/50' : 'bg-red-400 shadow-lg shadow-red-400/50'} animate-pulse`}></div>
+              <span className="text-slate-300 text-sm font-medium">Connection</span>
+            </div>
+            <span className={`text-sm font-semibold ${state.isConnected ? 'text-emerald-400' : 'text-red-400'}`}>
+              {state.isConnected ? 'Connected' : 'Disconnected'}
+            </span>
+          </div>
 
-      <div className="mt-8 text-center opacity-80 text-sm">
-        <p className="my-2">Make sure League of Legends client is running</p>
-        <p className="my-2">The app will automatically detect and connect to your client</p>
+          {/* Status Message */}
+          <div className="mb-6">
+            <div className="flex items-center gap-2 mb-2">
+              <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span className="text-slate-400 text-xs font-medium uppercase tracking-wider">Status</span>
+            </div>
+            <p className="text-white text-lg font-medium">{state.status}</p>
+          </div>
+
+          {/* Match Found Alert */}
+          {state.matchFound && (
+            <div className="mb-6 p-4 bg-gradient-to-r from-emerald-500/20 to-green-500/20 rounded-xl border border-emerald-500/30 animate-pulse">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-emerald-500/20 flex items-center justify-center">
+                  <svg className="w-6 h-6 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-emerald-300 font-semibold">Match Found!</p>
+                  <p className="text-emerald-400/80 text-sm">
+                    {delaySeconds > 0 
+                      ? `Waiting ${delaySeconds}s before accepting...`
+                      : "Auto-accepting..."}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Delay Slider */}
+        <div className="bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 p-6 shadow-2xl">
+          <div className="mb-4">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span className="text-slate-300 text-sm font-medium">Accept Delay</span>
+              </div>
+              <span className="text-white text-sm font-semibold">
+                {delaySeconds === 0 ? "Instant" : `${delaySeconds}s`}
+              </span>
+            </div>
+            <p className="text-slate-500 text-xs">Delay before accepting a match</p>
+          </div>
+          
+          <div className="space-y-3">
+            <input
+              type="range"
+              min="0"
+              max="10"
+              value={delaySeconds}
+              onChange={(e) => handleDelayChange(Number(e.target.value))}
+              className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-purple-500"
+              style={{
+                background: `linear-gradient(to right, rgb(168, 85, 247) 0%, rgb(168, 85, 247) ${(delaySeconds / 10) * 100}%, rgb(51, 65, 85) ${(delaySeconds / 10) * 100}%, rgb(51, 65, 85) 100%)`
+              }}
+            />
+            <div className="flex justify-between text-xs text-slate-500">
+              <span>0s</span>
+              <span>5s</span>
+              <span>10s</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Control Button */}
+        <button
+          onClick={toggleAutoAccept}
+          disabled={!state.isConnected && !state.isRunning}
+          className={`w-full py-4 px-6 rounded-xl font-semibold text-white transition-all duration-300 transform ${
+            state.isRunning
+              ? 'bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 shadow-lg shadow-red-500/50 hover:shadow-red-500/70 hover:scale-[1.02] active:scale-[0.98]'
+              : 'bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 shadow-lg shadow-purple-500/50 hover:shadow-purple-500/70 hover:scale-[1.02] active:scale-[0.98]'
+          } disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:shadow-purple-500/50`}
+        >
+          <div className="flex items-center justify-center gap-2">
+            {state.isRunning ? (
+              <>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
+                </svg>
+                <span>Stop Auto Accept</span>
+              </>
+            ) : (
+              <>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>Start Auto Accept</span>
+              </>
+            )}
+          </div>
+        </button>
+
+        {/* Info Footer */}
+        <div className="text-center space-y-1">
+          <p className="text-slate-500 text-xs">Make sure League of Legends client is running</p>
+          <p className="text-slate-600 text-xs">The app will automatically detect and connect</p>
+        </div>
       </div>
     </div>
   );
 }
 
 export default App;
-

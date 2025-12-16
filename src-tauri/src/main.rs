@@ -19,55 +19,75 @@ struct AppState {
     status: Arc<Mutex<String>>,
     match_found: Arc<Mutex<bool>>,
     client_info: Arc<Mutex<Option<LeagueClientInfo>>>,
+    accept_delay_seconds: Arc<Mutex<u64>>,
+    http_client: reqwest::Client,
 }
 
 impl Default for AppState {
     fn default() -> Self {
+        let http_client = reqwest::Client::builder()
+            .danger_accept_invalid_certs(true)
+            .build()
+            .expect("failed to build http client");
+
         Self {
             is_running: Arc::new(Mutex::new(false)),
             is_connected: Arc::new(Mutex::new(false)),
             status: Arc::new(Mutex::new("Initializing...".to_string())),
             match_found: Arc::new(Mutex::new(false)),
             client_info: Arc::new(Mutex::new(None)),
+            accept_delay_seconds: Arc::new(Mutex::new(0)), // Default: no delay
+            http_client,
         }
     }
 }
 
-// Get League client info from lockfile
-fn get_league_client_info() -> Option<LeagueClientInfo> {
-    use std::path::PathBuf;
-    
+// Get League client info; cached, only hits disk when missing
+async fn get_or_read_client_info(state: &AppState) -> Option<LeagueClientInfo> {
+    if let Some(info) = state.client_info.lock().await.clone() {
+        return Some(info);
+    }
+
     // Try common League of Legends installation paths
-    // The lockfile is typically in the game installation directory, not AppData
     let possible_paths = vec![
         // Most common: Installation directory (C:\Riot Games\League of Legends\)
         r"C:\Riot Games\League of Legends\lockfile".to_string(),
         // Alternative installation locations
-        format!(r"{}\Riot Games\League of Legends\lockfile", 
-            std::env::var("PROGRAMFILES").unwrap_or_default()),
-        format!(r"{}\Riot Games\League of Legends\lockfile", 
-            std::env::var("PROGRAMFILES(X86)").unwrap_or_default()),
+        format!(
+            r"{}\Riot Games\League of Legends\lockfile",
+            std::env::var("PROGRAMFILES").unwrap_or_default()
+        ),
+        format!(
+            r"{}\Riot Games\League of Legends\lockfile",
+            std::env::var("PROGRAMFILES(X86)").unwrap_or_default()
+        ),
         // Sometimes in AppData (less common)
-        format!(r"{}\Riot Games\League of Legends\lockfile", 
-            std::env::var("LOCALAPPDATA").unwrap_or_default()),
+        format!(
+            r"{}\Riot Games\League of Legends\lockfile",
+            std::env::var("LOCALAPPDATA").unwrap_or_default()
+        ),
         // User-specific installation
-        format!(r"{}\Riot Games\League of Legends\lockfile", 
-            std::env::var("USERPROFILE").unwrap_or_default()),
+        format!(
+            r"{}\Riot Games\League of Legends\lockfile",
+            std::env::var("USERPROFILE").unwrap_or_default()
+        ),
     ];
 
     for path_str in possible_paths {
-        let path = PathBuf::from(&path_str);
+        let path = std::path::PathBuf::from(&path_str);
         if path.exists() {
             if let Ok(contents) = std::fs::read_to_string(&path) {
                 // Lockfile format: name:pid:port:password:protocol
                 let parts: Vec<&str> = contents.split(':').collect();
                 if parts.len() >= 5 {
                     if let Ok(port) = parts[2].parse::<u16>() {
-                        return Some(LeagueClientInfo {
+                        let info = LeagueClientInfo {
                             port,
                             password: parts[3].to_string(),
                             protocol: parts[4].trim().to_string(),
-                        });
+                        };
+                        *state.client_info.lock().await = Some(info.clone());
+                        return Some(info);
                     }
                 }
             }
@@ -78,77 +98,69 @@ fn get_league_client_info() -> Option<LeagueClientInfo> {
 
 // Check if League client is running (internal helper)
 async fn check_league_connection_internal(state: &AppState) -> bool {
-    if let Some(client_info) = get_league_client_info() {
-        if let Ok(client) = reqwest::Client::builder()
-            .danger_accept_invalid_certs(true)
-            .build()
-        {
-            let url = format!("{}://127.0.0.1:{}/lol-summoner/v1/current-summoner", 
-                client_info.protocol, client_info.port);
-            
-            let response = client
-                .get(&url)
-                .basic_auth("riot", Some(&client_info.password))
-                .send()
-                .await;
-            
-            if response.is_ok() {
-                *state.client_info.lock().await = Some(client_info);
-                *state.is_connected.lock().await = true;
-                return true;
-            }
+    if let Some(client_info) = get_or_read_client_info(state).await {
+        let url = format!(
+            "{}://127.0.0.1:{}/lol-summoner/v1/current-summoner",
+            client_info.protocol, client_info.port
+        );
+
+        let response = state
+            .http_client
+            .get(&url)
+            .basic_auth("riot", Some(&client_info.password))
+            .send()
+            .await;
+
+        if response.is_ok() {
+            *state.is_connected.lock().await = true;
+            return true;
         }
+        // Connection failed with cached info; clear so we re-read lockfile next iteration
+        *state.client_info.lock().await = None;
     }
-    
+
     *state.is_connected.lock().await = false;
-    *state.client_info.lock().await = None;
     false
 }
 
 // Accept match
 async fn accept_match(state: &AppState) -> bool {
-    let client_info = state.client_info.lock().await.clone();
-    if let Some(info) = client_info {
-        if let Ok(client) = reqwest::Client::builder()
-            .danger_accept_invalid_certs(true)
-            .build()
-        {
-            let url = format!("{}://127.0.0.1:{}/lol-matchmaking/v1/ready-check/accept", 
-                info.protocol, info.port);
-            
-            let response = client
-                .post(&url)
-                .basic_auth("riot", Some(&info.password))
-                .send()
-                .await;
-            
-            return response.is_ok();
-        }
+    if let Some(info) = get_or_read_client_info(state).await {
+        let url = format!(
+            "{}://127.0.0.1:{}/lol-matchmaking/v1/ready-check/accept",
+            info.protocol, info.port
+        );
+
+        let response = state
+            .http_client
+            .post(&url)
+            .basic_auth("riot", Some(&info.password))
+            .send()
+            .await;
+
+        return response.is_ok();
     }
     false
 }
 
 // Check for match found
 async fn check_match_found(state: &AppState) -> bool {
-    let client_info = state.client_info.lock().await.clone();
-    if let Some(info) = client_info {
-        if let Ok(client) = reqwest::Client::builder()
-            .danger_accept_invalid_certs(true)
-            .build()
+    if let Some(info) = get_or_read_client_info(state).await {
+        let url = format!(
+            "{}://127.0.0.1:{}/lol-matchmaking/v1/ready-check",
+            info.protocol, info.port
+        );
+
+        if let Ok(response) = state
+            .http_client
+            .get(&url)
+            .basic_auth("riot", Some(&info.password))
+            .send()
+            .await
         {
-            let url = format!("{}://127.0.0.1:{}/lol-matchmaking/v1/ready-check", 
-                info.protocol, info.port);
-            
-            if let Ok(response) = client
-                .get(&url)
-                .basic_auth("riot", Some(&info.password))
-                .send()
-                .await
-            {
-                if let Ok(json) = response.json::<serde_json::Value>().await {
-                    if let Some(state_str) = json.get("state").and_then(|v| v.as_str()) {
-                        return state_str == "InProgress";
-                    }
+            if let Ok(json) = response.json::<serde_json::Value>().await {
+                if let Some(state_str) = json.get("state").and_then(|v| v.as_str()) {
+                    return state_str == "InProgress";
                 }
             }
         }
@@ -178,7 +190,14 @@ async fn auto_accept_loop(state: AppState) {
         *state.match_found.lock().await = match_found;
 
         if match_found {
-            *state.status.lock().await = "Match found! Auto-accepting...".to_string();
+            let delay = *state.accept_delay_seconds.lock().await;
+            if delay > 0 {
+                *state.status.lock().await = format!("Match found! Waiting {}s before accepting...", delay);
+                tokio::time::sleep(tokio::time::Duration::from_secs(delay)).await;
+            } else {
+                *state.status.lock().await = "Match found! Auto-accepting...".to_string();
+            }
+            
             if accept_match(&state).await {
                 *state.status.lock().await = "Match accepted!".to_string();
                 tokio::time::sleep(tokio::time::Duration::from_millis(3000)).await;
@@ -226,6 +245,17 @@ async fn stop_auto_accept(state: tauri::State<'_, AppState>) -> Result<(), Strin
     Ok(())
 }
 
+#[tauri::command]
+async fn set_accept_delay(state: tauri::State<'_, AppState>, delay_seconds: u64) -> Result<(), String> {
+    *state.accept_delay_seconds.lock().await = delay_seconds;
+    Ok(())
+}
+
+#[tauri::command]
+async fn get_accept_delay(state: tauri::State<'_, AppState>) -> Result<u64, String> {
+    Ok(*state.accept_delay_seconds.lock().await)
+}
+
 fn main() {
     let app_state = AppState::default();
     let state_clone = app_state.clone();
@@ -243,7 +273,9 @@ fn main() {
             is_running,
             is_match_found,
             start_auto_accept,
-            stop_auto_accept
+            stop_auto_accept,
+            set_accept_delay,
+            get_accept_delay
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
