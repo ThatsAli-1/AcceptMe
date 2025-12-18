@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/tauri";
+import ChampionPreferences from "./ChampionPreferences";
 
 interface AppState {
   isConnected: boolean;
@@ -8,7 +9,10 @@ interface AppState {
   matchFound: boolean;
 }
 
+type View = "main" | "preferences";
+
 function App() {
+  const [view, setView] = useState<View>("main");
   const [state, setState] = useState<AppState>({
     isConnected: false,
     isRunning: false,
@@ -84,26 +88,53 @@ function App() {
     }
   };
 
+  if (view === "preferences") {
+    return <ChampionPreferences onBack={() => setView("main")} />;
+  }
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-6">
-      <div className="w-full max-w-md space-y-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-950 flex items-center justify-center p-6 relative overflow-hidden">
+      {/* Animated gradient orbs */}
+      <div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-500/20 rounded-full blur-3xl animate-pulse"></div>
+      <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl animate-pulse delay-1000"></div>
+      
+      <div className="w-full max-w-md space-y-5 relative z-10">
         {/* Header */}
-        <div className="text-center space-y-2">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-500 to-pink-500 shadow-lg shadow-purple-500/50 mb-4">
-            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+        <div className="text-center space-y-3 mb-8">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 via-indigo-500 to-purple-500 shadow-lg shadow-blue-500/30 mb-2 relative overflow-hidden group">
+            <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+            <svg className="w-8 h-8 text-white relative z-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
             </svg>
           </div>
-          <h1 className="text-3xl font-bold text-white">AcceptMe</h1>
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-400 bg-clip-text text-transparent">
+            AcceptMe
+          </h1>
           <p className="text-slate-400 text-sm">Auto-accept League matches</p>
         </div>
 
+        {/* Navigation */}
+        <div className="flex gap-2 bg-slate-900/50 backdrop-blur-xl rounded-xl p-1 border border-slate-800/50">
+          <button
+            onClick={() => setView("main")}
+            className="flex-1 py-2 px-4 rounded-lg font-medium text-sm text-white bg-gradient-to-r from-blue-500 to-indigo-500 shadow-lg shadow-blue-500/30 transition-all duration-200"
+          >
+            Auto Accept
+          </button>
+          <button
+            onClick={() => setView("preferences")}
+            className="flex-1 py-2 px-4 rounded-lg font-medium text-sm text-slate-300 hover:text-white transition-colors"
+          >
+            Preferences
+          </button>
+        </div>
+
         {/* Status Card */}
-        <div className="bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 p-6 shadow-2xl">
+        <div className="bg-slate-900/40 backdrop-blur-xl rounded-2xl border border-slate-800/50 p-6 shadow-xl">
           {/* Connection Status */}
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
-              <div className={`w-3 h-3 rounded-full ${state.isConnected ? 'bg-emerald-400 shadow-lg shadow-emerald-400/50' : 'bg-red-400 shadow-lg shadow-red-400/50'} animate-pulse`}></div>
+              <div className={`w-2.5 h-2.5 rounded-full ${state.isConnected ? 'bg-emerald-400 shadow-lg shadow-emerald-400/50' : 'bg-red-400 shadow-lg shadow-red-400/50'} animate-pulse`}></div>
               <span className="text-slate-300 text-sm font-medium">Connection</span>
             </div>
             <span className={`text-sm font-semibold ${state.isConnected ? 'text-emerald-400' : 'text-red-400'}`}>
@@ -114,17 +145,17 @@ function App() {
           {/* Status Message */}
           <div className="mb-6">
             <div className="flex items-center gap-2 mb-2">
-              <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              <span className="text-slate-400 text-xs font-medium uppercase tracking-wider">Status</span>
+              <span className="text-slate-500 text-xs font-medium uppercase tracking-wider">Status</span>
             </div>
-            <p className="text-white text-lg font-medium">{state.status}</p>
+            <p className="text-white text-lg font-semibold">{state.status}</p>
           </div>
 
           {/* Match Found Alert */}
           {state.matchFound && (
-            <div className="mb-6 p-4 bg-gradient-to-r from-emerald-500/20 to-green-500/20 rounded-xl border border-emerald-500/30 animate-pulse">
+            <div className="p-4 bg-gradient-to-r from-emerald-500/10 to-blue-500/10 rounded-xl border border-emerald-500/30 animate-pulse">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg bg-emerald-500/20 flex items-center justify-center">
                   <svg className="w-6 h-6 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -133,7 +164,7 @@ function App() {
                 </div>
                 <div>
                   <p className="text-emerald-300 font-semibold">Match Found!</p>
-                  <p className="text-emerald-400/80 text-sm">
+                  <p className="text-slate-400 text-sm">
                     {delaySeconds > 0 
                       ? `Waiting ${delaySeconds}s before accepting...`
                       : "Auto-accepting..."}
@@ -145,7 +176,7 @@ function App() {
         </div>
 
         {/* Delay Slider */}
-        <div className="bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 p-6 shadow-2xl">
+        <div className="bg-slate-900/40 backdrop-blur-xl rounded-2xl border border-slate-800/50 p-6 shadow-xl">
           <div className="mb-4">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
@@ -154,7 +185,7 @@ function App() {
                 </svg>
                 <span className="text-slate-300 text-sm font-medium">Accept Delay</span>
               </div>
-              <span className="text-white text-sm font-semibold">
+              <span className="text-blue-400 text-sm font-semibold">
                 {delaySeconds === 0 ? "Instant" : `${delaySeconds}s`}
               </span>
             </div>
@@ -168,9 +199,9 @@ function App() {
               max="10"
               value={delaySeconds}
               onChange={(e) => handleDelayChange(Number(e.target.value))}
-              className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-purple-500"
+              className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-500"
               style={{
-                background: `linear-gradient(to right, rgb(168, 85, 247) 0%, rgb(168, 85, 247) ${(delaySeconds / 10) * 100}%, rgb(51, 65, 85) ${(delaySeconds / 10) * 100}%, rgb(51, 65, 85) 100%)`
+                background: `linear-gradient(to right, rgb(59, 130, 246) 0%, rgb(59, 130, 246) ${(delaySeconds / 10) * 100}%, rgb(30, 41, 59) ${(delaySeconds / 10) * 100}%, rgb(30, 41, 59) 100%)`
               }}
             />
             <div className="flex justify-between text-xs text-slate-500">
@@ -185,11 +216,11 @@ function App() {
         <button
           onClick={toggleAutoAccept}
           disabled={!state.isConnected && !state.isRunning}
-          className={`w-full py-4 px-6 rounded-xl font-semibold text-white transition-all duration-300 transform ${
+          className={`w-full py-3.5 px-6 rounded-xl font-semibold text-white transition-all duration-200 ${
             state.isRunning
-              ? 'bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 shadow-lg shadow-red-500/50 hover:shadow-red-500/70 hover:scale-[1.02] active:scale-[0.98]'
-              : 'bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 shadow-lg shadow-purple-500/50 hover:shadow-purple-500/70 hover:scale-[1.02] active:scale-[0.98]'
-          } disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:shadow-purple-500/50`}
+              ? 'bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-400 hover:to-rose-500 shadow-lg shadow-red-500/30 hover:shadow-red-500/50'
+              : 'bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-400 hover:to-indigo-500 shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50'
+          } disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:shadow-none`}
         >
           <div className="flex items-center justify-center gap-2">
             {state.isRunning ? (
