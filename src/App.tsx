@@ -15,7 +15,7 @@ function App() {
   const [view, setView] = useState<View>("main");
   const [state, setState] = useState<AppState>({
     isConnected: false,
-    isRunning: false,
+    isRunning: true, // Default to on
     status: "Initializing...",
     matchFound: false,
   });
@@ -93,7 +93,7 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-950 flex items-center justify-center p-6 relative overflow-hidden">
+    <div className="h-screen bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-950 flex items-center justify-center p-6 relative overflow-hidden">
       {/* Animated gradient orbs */}
       <div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-500/20 rounded-full blur-3xl animate-pulse"></div>
       <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl animate-pulse delay-1000"></div>

@@ -43,8 +43,11 @@
         "fullscreen": false,
         "resizable": true,
         "title": "AcceptMe - League Auto Accept",
-        "width": 600,
-        "height": 500
+        "width": 1100,
+        "height": 750,
+        "minWidth": 900,
+        "minHeight": 600,
+        "center": true
       }
     ]
   }
