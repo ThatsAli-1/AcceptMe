@@ -234,7 +234,7 @@ function ChampionPreferences({ onBack }: ChampionPreferencesProps) {
         <div className="absolute top-[-50%] left-[-50%] w-[200%] h-[200%] bg-[radial-gradient(ellipse_at_center,_rgba(99,102,241,0.15)_0%,_transparent_50%)]" />
         <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-indigo-500/50 to-transparent" />
       </div>
-
+      
       <div className="relative z-10 max-w-5xl mx-auto p-6">
         {/* Header */}
         <div className="flex items-center gap-4 mb-8">
@@ -321,26 +321,26 @@ function ChampionPreferences({ onBack }: ChampionPreferencesProps) {
               <button
                 onClick={() => openChampionPicker(activeRole, "pick")}
                 className={`p-2 rounded-lg ${currentRole.bg} border ${currentRole.border} hover:bg-white/10 transition-all`}
-              >
+                      >
                 <svg className={`w-5 h-5 ${currentRole.text}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-              </button>
-            </div>
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
+                      </button>
+                    </div>
 
             <div className="space-y-2 min-h-[200px]">
-              {rolePrefs.preferred_champions.length === 0 ? (
+                      {rolePrefs.preferred_champions.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-[200px] text-white/30">
                   <svg className="w-12 h-12 mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v16m8-8H4" />
                   </svg>
                   <p className="text-sm">Add champions to pick</p>
                 </div>
-              ) : (
-                rolePrefs.preferred_champions.map((champId, index) => {
-                  const champ = getChampionById(champId);
-                  if (!champ) return null;
-                  return (
+                      ) : (
+                        rolePrefs.preferred_champions.map((champId, index) => {
+                          const champ = getChampionById(champId);
+                          if (!champ) return null;
+                          return (
                     <div
                       key={champId}
                       className="flex items-center gap-4 p-3 rounded-xl bg-black/30 border border-white/5 group hover:border-white/20 transition-all"
@@ -348,29 +348,29 @@ function ChampionPreferences({ onBack }: ChampionPreferencesProps) {
                       <span className={`w-8 h-8 rounded-lg bg-gradient-to-br ${currentRole.gradient} flex items-center justify-center text-sm font-bold shadow-lg`}>
                         {index + 1}
                       </span>
-                      <img
-                        src={getChampionIconPath(champ.name)}
-                        alt={champ.name}
+                              <img
+                                src={getChampionIconPath(champ.name)}
+                                alt={champ.name}
                         className="w-14 h-14 rounded-xl border-2 border-white/20 shadow-lg"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).src = `https://ddragon.leagueoflegends.com/cdn/13.24.1/img/champion/${champ.alias}.png`;
-                        }}
-                      />
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).src = `https://ddragon.leagueoflegends.com/cdn/13.24.1/img/champion/${champ.alias}.png`;
+                                }}
+                              />
                       <span className="flex-1 font-semibold text-lg">{champ.name}</span>
-                      <button
+                              <button
                         onClick={() => removeChampion(activeRole, champId, "pick")}
                         className="p-2 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-red-500/20 transition-all"
-                      >
+                              >
                         <svg className="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            </div>
+                          );
+                        })
+                      )}
                     </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
+                  </div>
 
           {/* Ban Champions */}
           <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-5">
@@ -381,34 +381,34 @@ function ChampionPreferences({ onBack }: ChampionPreferencesProps) {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
                   </svg>
                 </div>
-                <div>
+                  <div>
                   <h3 className="font-semibold text-white">Ban Priority</h3>
                   <p className="text-xs text-white/40">Champions to auto-ban</p>
                 </div>
               </div>
-              <button
+                      <button
                 onClick={() => openChampionPicker(activeRole, "ban")}
                 className="p-2 rounded-lg bg-red-500/10 border border-red-500/30 hover:bg-red-500/20 transition-all"
-              >
+                      >
                 <svg className="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-              </button>
-            </div>
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
+                      </button>
+                    </div>
 
             <div className="space-y-2 min-h-[200px]">
-              {rolePrefs.auto_ban_champions.length === 0 ? (
+                      {rolePrefs.auto_ban_champions.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-[200px] text-white/30">
                   <svg className="w-12 h-12 mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
                   </svg>
                   <p className="text-sm">Add champions to ban</p>
                 </div>
-              ) : (
-                rolePrefs.auto_ban_champions.map((champId, index) => {
-                  const champ = getChampionById(champId);
-                  if (!champ) return null;
-                  return (
+                      ) : (
+                        rolePrefs.auto_ban_champions.map((champId, index) => {
+                          const champ = getChampionById(champId);
+                          if (!champ) return null;
+                          return (
                     <div
                       key={champId}
                       className="flex items-center gap-4 p-3 rounded-xl bg-black/30 border border-white/5 group hover:border-white/20 transition-all"
@@ -417,33 +417,33 @@ function ChampionPreferences({ onBack }: ChampionPreferencesProps) {
                         {index + 1}
                       </span>
                       <div className="relative">
-                        <img
-                          src={getChampionIconPath(champ.name)}
-                          alt={champ.name}
+                              <img
+                                src={getChampionIconPath(champ.name)}
+                                alt={champ.name}
                           className="w-14 h-14 rounded-xl border-2 border-red-500/30 grayscale shadow-lg"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = `https://ddragon.leagueoflegends.com/cdn/13.24.1/img/champion/${champ.alias}.png`;
-                          }}
-                        />
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).src = `https://ddragon.leagueoflegends.com/cdn/13.24.1/img/champion/${champ.alias}.png`;
+                                }}
+                              />
                         <div className="absolute inset-0 flex items-center justify-center">
                           <div className="w-full h-1 bg-red-500 rotate-45 rounded-full shadow-lg" />
                         </div>
                       </div>
                       <span className="flex-1 font-semibold text-lg text-white/70">{champ.name}</span>
-                      <button
+                              <button
                         onClick={() => removeChampion(activeRole, champId, "ban")}
                         className="p-2 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-red-500/20 transition-all"
-                      >
+                              >
                         <svg className="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            </div>
+                          );
+                        })
+                      )}
                     </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
+                  </div>
         </div>
       </div>
 
@@ -469,40 +469,40 @@ function ChampionPreferences({ onBack }: ChampionPreferencesProps) {
                   <div>
                     <h2 className="text-xl font-bold">
                       {pickerMode === "pick" ? "Select Champion" : "Select Ban"}
-                    </h2>
+              </h2>
                     <p className="text-sm text-white/40">
                       {ROLES.find((r) => r.key === pickerRole)?.label} Lane
                     </p>
                   </div>
                 </div>
-                <button
-                  onClick={() => setShowChampionPicker(false)}
+              <button
+                onClick={() => setShowChampionPicker(false)}
                   className="p-2 rounded-xl hover:bg-white/10 transition-all"
-                >
+              >
                   <svg className="w-6 h-6 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
               {/* Search */}
               <div className="mt-4 relative">
                 <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
-                <input
-                  type="text"
-                  placeholder="Search champions..."
-                  value={searchTerm}
+              <input
+                type="text"
+                placeholder="Search champions..."
+                value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full pl-12 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/30 focus:outline-none focus:border-white/30 transition-all"
-                  autoFocus
-                />
+                autoFocus
+              />
               </div>
             </div>
-
+              
             {/* Champions Grid */}
-            <div className="flex-1 overflow-y-auto p-6">
+            <div className="flex-1 overflow-y-auto p-6 scrollbar-modern">
               {loading ? (
                 <div className="flex items-center justify-center h-full">
                   <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin" />

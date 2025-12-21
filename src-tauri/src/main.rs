@@ -311,10 +311,10 @@ async fn get_current_role(state: &AppState) -> Option<String> {
             if let Some(my_team) = session.get("myTeam").and_then(|v| v.as_array()) {
                 for player in my_team {
                     if let Some(cell_id) = player.get("cellId").and_then(|v| v.as_i64()) {
-                        if cell_id == my_cell_id {
+                                if cell_id == my_cell_id {
                             if let Some(position) = player.get("assignedPosition").and_then(|v| v.as_str()) {
                                 if !position.is_empty() {
-                                    return Some(position.to_string());
+                                                return Some(position.to_string());
                                 }
                             }
                         }
@@ -327,6 +327,7 @@ async fn get_current_role(state: &AppState) -> Option<String> {
 }
 
 // Hover champion
+// RELAXED: Check completed == false instead of isInProgress == true
 async fn hover_champion(state: &AppState, champion_id: i64) -> bool {
     if let Some(info) = get_or_read_client_info(state).await {
         if let Some(session) = get_champion_select_session(state).await {
@@ -348,10 +349,76 @@ async fn hover_champion(state: &AppState, champion_id: i64) -> bool {
                                 continue;
                             }
                             
-                            // Check if action is in progress (our turn)
-                            let in_progress = action.get("isInProgress").and_then(|v| v.as_bool()).unwrap_or(false);
-                            if !in_progress {
+                            // RELAXED: Check completed == false instead of isInProgress == true
+                            let completed = action.get("completed").and_then(|v| v.as_bool()).unwrap_or(true);
+                            if completed {
+                                continue; // Already completed, skip
+                            }
+                            
+                            if let Some(id) = action.get("id").and_then(|v| v.as_i64()) {
+                                            let patch_url = format!(
+                                                "{}://127.0.0.1:{}/lol-champ-select/v1/session/actions/{}",
+                                                info.protocol, info.port, id
+                                            );
+                                            
+                                            let payload = serde_json::json!({
+                                    "championId": champion_id
+                                            });
+
+                                            let response = state
+                                                .http_client
+                                                .patch(&patch_url)
+                                                .basic_auth("riot", Some(&info.password))
+                                                .json(&payload)
+                                                .send()
+                                                .await;
+
+                                            return response.is_ok();
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+    false
+}
+
+// Just lock in the currently selected champion (without changing it)
+// RELAXED: Don't require isInProgress - just check completed == false
+async fn lock_current_champion(state: &AppState) -> bool {
+    eprintln!("[DEBUG] lock_current_champion() called");
+    if let Some(info) = get_or_read_client_info(state).await {
+        if let Some(session) = get_champion_select_session(state).await {
+            if let Some(actions) = session.get("actions").and_then(|v| v.as_array()) {
+                let my_cell_id = get_my_cell_id(state).await;
+                
+                for action_array in actions {
+                    if let Some(action_array) = action_array.as_array() {
+                        for action in action_array {
+                            let action_type = action.get("type").and_then(|v| v.as_str()).unwrap_or("");
+                            if action_type != "pick" {
                                 continue;
+                            }
+                            
+                            let actor_cell_id = action.get("actorCellId").and_then(|v| v.as_i64());
+                            if actor_cell_id != my_cell_id {
+                                continue;
+                            }
+                            
+                            // RELAXED: Check completed == false instead of isInProgress == true
+                            let completed = action.get("completed").and_then(|v| v.as_bool()).unwrap_or(true);
+                            if completed {
+                                continue; // Already locked, skip
+                            }
+                            
+                            // Check if a champion is selected (championId > 0)
+                            let current_champ = action.get("championId").and_then(|v| v.as_i64()).unwrap_or(0);
+                            eprintln!("[DEBUG] lock_current_champion: Found our pick action, completed=false, championId={}", current_champ);
+                            
+                            if current_champ <= 0 {
+                                eprintln!("[DEBUG] lock_current_champion: No champion selected yet");
+                                return false; // No champion selected, can't lock
                             }
                             
                             if let Some(id) = action.get("id").and_then(|v| v.as_i64()) {
@@ -360,19 +427,28 @@ async fn hover_champion(state: &AppState, champion_id: i64) -> bool {
                                     info.protocol, info.port, id
                                 );
                                 
-                                let payload = serde_json::json!({
-                                    "championId": champion_id
+                                eprintln!("[DEBUG] lock_current_champion: Sending lock request for action {}", id);
+                                
+                                // Just lock - don't change the champion
+                                let complete_payload = serde_json::json!({
+                                    "completed": true
                                 });
 
-                                let response = state
+                                let result = state
                                     .http_client
                                     .patch(&patch_url)
                                     .basic_auth("riot", Some(&info.password))
-                                    .json(&payload)
+                                    .json(&complete_payload)
                                     .send()
                                     .await;
 
-                                return response.is_ok();
+                                if let Ok(response) = result {
+                                    let success = response.status().is_success();
+                                    eprintln!("[DEBUG] lock_current_champion: API response success={}", success);
+                                    return success;
+                                }
+                                eprintln!("[DEBUG] lock_current_champion: API request failed");
+                                return false;
                             }
                         }
                     }
@@ -380,6 +456,7 @@ async fn hover_champion(state: &AppState, champion_id: i64) -> bool {
             }
         }
     }
+    eprintln!("[DEBUG] lock_current_champion: No valid pick action found");
     false
 }
 
@@ -412,23 +489,23 @@ async fn select_champion(state: &AppState, champion_id: i64) -> bool {
                             }
                             
                             if let Some(id) = action.get("id").and_then(|v| v.as_i64()) {
-                                let patch_url = format!(
-                                    "{}://127.0.0.1:{}/lol-champ-select/v1/session/actions/{}",
-                                    info.protocol, info.port, id
-                                );
-                                
+                                                    let patch_url = format!(
+                                                        "{}://127.0.0.1:{}/lol-champ-select/v1/session/actions/{}",
+                                                        info.protocol, info.port, id
+                                                    );
+                                                    
                                 // Step 1: Hover the champion first
                                 let hover_payload = serde_json::json!({
                                     "championId": champion_id
-                                });
+                                                    });
 
                                 let hover_result = state
-                                    .http_client
-                                    .patch(&patch_url)
-                                    .basic_auth("riot", Some(&info.password))
+                                                        .http_client
+                                                        .patch(&patch_url)
+                                                        .basic_auth("riot", Some(&info.password))
                                     .json(&hover_payload)
-                                    .send()
-                                    .await;
+                                                        .send()
+                                                        .await;
 
                                 if hover_result.is_err() {
                                     return false;
@@ -465,11 +542,15 @@ async fn select_champion(state: &AppState, champion_id: i64) -> bool {
 }
 
 // Ban champion - two step: first select, then complete
+// RELAXED: Check completed == false instead of isInProgress == true
 async fn ban_champion(state: &AppState, champion_id: i64) -> bool {
+    eprintln!("[DEBUG] ban_champion() called for champion {}", champion_id);
+    
     if let Some(info) = get_or_read_client_info(state).await {
         if let Some(session) = get_champion_select_session(state).await {
             if let Some(actions) = session.get("actions").and_then(|v| v.as_array()) {
                 let my_cell_id = get_my_cell_id(state).await;
+                eprintln!("[DEBUG] ban_champion: my_cell_id={:?}", my_cell_id);
                 
                 for action_array in actions {
                     if let Some(action_array) = action_array.as_array() {
@@ -486,30 +567,32 @@ async fn ban_champion(state: &AppState, champion_id: i64) -> bool {
                                 continue;
                             }
                             
-                            // Check if action is in progress (our turn)
-                            let in_progress = action.get("isInProgress").and_then(|v| v.as_bool()).unwrap_or(false);
-                            if !in_progress {
-                                continue;
+                            // RELAXED: Check completed == false instead of isInProgress == true
+                            let completed = action.get("completed").and_then(|v| v.as_bool()).unwrap_or(true);
+                            eprintln!("[DEBUG] ban_champion: Found our ban action, completed={}", completed);
+                            if completed {
+                                continue; // Already banned, skip
                             }
                             
                             if let Some(id) = action.get("id").and_then(|v| v.as_i64()) {
-                                let patch_url = format!(
-                                    "{}://127.0.0.1:{}/lol-champ-select/v1/session/actions/{}",
-                                    info.protocol, info.port, id
-                                );
-                                
+                                eprintln!("[DEBUG] ban_champion: Action ID={}, sending ban for champ {}", id, champion_id);
+                                                    let patch_url = format!(
+                                                        "{}://127.0.0.1:{}/lol-champ-select/v1/session/actions/{}",
+                                                        info.protocol, info.port, id
+                                                    );
+                                                    
                                 // Step 1: Set the champion to ban (hover it)
                                 let hover_payload = serde_json::json!({
                                     "championId": champion_id
-                                });
+                                                    });
 
                                 let hover_result = state
-                                    .http_client
-                                    .patch(&patch_url)
-                                    .basic_auth("riot", Some(&info.password))
+                                                        .http_client
+                                                        .patch(&patch_url)
+                                                        .basic_auth("riot", Some(&info.password))
                                     .json(&hover_payload)
-                                    .send()
-                                    .await;
+                                                        .send()
+                                                        .await;
 
                                 if hover_result.is_err() {
                                     return false;
@@ -533,15 +616,15 @@ async fn ban_champion(state: &AppState, champion_id: i64) -> bool {
 
                                 if let Ok(response) = complete_result {
                                     return response.status().is_success();
-                                }
+                                                }
                                 return false;
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
                 }
-            }
-        }
-    }
     false
 }
 
@@ -682,7 +765,7 @@ async fn is_my_pick_turn(state: &AppState) -> bool {
     false
 }
 
-// Check if it's currently our turn to ban
+// Check if it's currently our turn to ban (strict - uses isInProgress)
 async fn is_my_ban_turn(state: &AppState) -> bool {
     if let Some(session) = get_champion_select_session(state).await {
         if let Some(actions) = session.get("actions").and_then(|v| v.as_array()) {
@@ -709,12 +792,45 @@ async fn is_my_ban_turn(state: &AppState) -> bool {
     false
 }
 
+// RELAXED: Check if we have a pending ban action (completed == false, not requiring isInProgress)
+async fn has_pending_ban_action(state: &AppState) -> bool {
+    if let Some(session) = get_champion_select_session(state).await {
+        if let Some(actions) = session.get("actions").and_then(|v| v.as_array()) {
+            let my_cell_id = get_my_cell_id(state).await;
+            for action_array in actions {
+                if let Some(action_array) = action_array.as_array() {
+                    for action in action_array {
+                        let action_type = action.get("type").and_then(|v| v.as_str()).unwrap_or("");
+                        if action_type != "ban" {
+                            continue;
+                        }
+                        
+                        let actor_cell_id = action.get("actorCellId").and_then(|v| v.as_i64());
+                        if actor_cell_id != my_cell_id {
+                            continue;
+                        }
+                        
+                        // RELAXED: Check completed == false instead of isInProgress == true
+                        let completed = action.get("completed").and_then(|v| v.as_bool()).unwrap_or(true);
+                        if !completed {
+                            return true; // We have a pending ban!
+                        }
+                    }
+                }
+            }
+        }
+    }
+    false
+}
+
 // Background task to monitor champion select and perform auto actions
 async fn champion_select_loop(state: AppState) {
     let mut last_phase: Option<String> = None;
     let mut hovered_champion: Option<i64> = None;
     let mut locked_champion: Option<i64> = None;
     let mut my_ban_completed: bool = false;
+    let mut hover_attempted: bool = false; // Only hover once per pick phase, respect user changes
+    let mut lock_attempted: bool = false; // Only lock once per pick phase, respect user changes
     
     // Cooldown tracking to prevent API spam
     let mut last_ban_attempt: Option<Instant> = None;
@@ -736,38 +852,53 @@ async fn champion_select_loop(state: AppState) {
 
         if is_in_champion_select(&state).await {
             if let Some(session) = get_champion_select_session(&state).await {
-                // Get phase from timer or default
-                let phase = session.get("timer")
-                    .and_then(|v| v.as_object())
+                // Get phase and remaining time from timer
+                let timer = session.get("timer").and_then(|v| v.as_object());
+                let phase = timer
                     .and_then(|t| t.get("phase"))
                     .and_then(|v| v.as_str())
                     .unwrap_or("UNKNOWN");
                 
+                // Get remaining time in milliseconds (adjustedTimeLeftInPhase is in ms)
+                let time_left_ms = timer
+                    .and_then(|t| t.get("adjustedTimeLeftInPhase"))
+                    .and_then(|v| v.as_i64())
+                    .unwrap_or(30000); // Default to 30 seconds if not found
+                let time_left_secs = time_left_ms / 1000;
+                
+                // Debug timer
+                eprintln!("[DEBUG] Timer: phase={}, time_left_ms={}, time_left_secs={}", phase, time_left_ms, time_left_secs);
+                eprintln!("[DEBUG] hover_attempted={}, lock_attempted={}, my_ban_completed={}", hover_attempted, lock_attempted, my_ban_completed);
+                
                 // Reset state when entering new champion select (not just phase change)
                 if last_phase.is_none() {
-                    hovered_champion = None;
+                            hovered_champion = None;
                     locked_champion = None;
                     my_ban_completed = false;
+                    hover_attempted = false;
+                    lock_attempted = false;
                     last_ban_attempt = None;
                     last_lock_attempt = None;
                     failed_ban_ids.clear();
                 }
-                last_phase = Some(phase.to_string());
+                            last_phase = Some(phase.to_string());
 
-                // Get current role
-                let current_role = get_current_role(&state).await.unwrap_or_else(|| "".to_string());
-                let role_key = match current_role.as_str() {
+                        // Get current role
+                        let current_role = get_current_role(&state).await.unwrap_or_else(|| "".to_string());
+                        let role_key = match current_role.as_str() {
                     "TOP" | "top" => "top",
                     "JUNGLE" | "jungle" => "jungle",
                     "MIDDLE" | "middle" | "MID" | "mid" => "mid",
                     "BOTTOM" | "bottom" | "ADC" | "adc" => "adc",
                     "UTILITY" | "utility" | "SUPPORT" | "support" => "support",
-                    _ => "",
-                };
+                            _ => "",
+                        };
 
                 // Check turn status
                 let is_ban_turn = is_my_ban_turn(&state).await;
                 let is_pick_turn = is_my_pick_turn(&state).await;
+                
+                eprintln!("[DEBUG] TURN STATUS: is_ban_turn={}, is_pick_turn={}, role={}", is_ban_turn, is_pick_turn, role_key);
 
                 // Reset my_ban_completed when not our ban turn anymore
                 // This handles ARAM/Clash/custom formats with multiple ban phases
@@ -817,129 +948,141 @@ async fn champion_select_loop(state: AppState) {
 
                 if let Some(role_prefs) = role_prefs {
                     // === AUTO BAN ===
+                    // RELAXED: Use has_pending_ban_action instead of is_ban_turn
+                    // This checks completed == false instead of isInProgress == true
                     let auto_ban_enabled = *state.auto_ban_enabled.lock().await;
+                    let has_pending_ban = has_pending_ban_action(&state).await;
+                    eprintln!("[DEBUG] BAN CHECK: enabled={}, has_pending_ban={}, my_ban_completed={}, ban_list={:?}", 
+                        auto_ban_enabled, has_pending_ban, my_ban_completed, role_prefs.auto_ban_champions);
                     
-                    if auto_ban_enabled && !my_ban_completed && is_ban_turn {
+                    if auto_ban_enabled && !my_ban_completed && has_pending_ban {
                         // Check cooldown (1 second between attempts)
                         let can_attempt_ban = match last_ban_attempt {
                             Some(last) => last.elapsed() > std::time::Duration::from_secs(1),
                             None => true,
                         };
+                        eprintln!("[DEBUG] BAN: can_attempt={}, failed_ids={:?}", can_attempt_ban, failed_ban_ids);
                         
                         if can_attempt_ban {
                             let ban_list = &role_prefs.auto_ban_champions;
                             if ban_list.is_empty() {
+                                eprintln!("[DEBUG] BAN: No bans configured!");
                                 *state.status.lock().await = "Ban turn - No bans configured".to_string();
                             } else {
                                 let banned_champs = get_banned_champions(&state).await;
+                                eprintln!("[DEBUG] BAN: Already banned champs: {:?}", banned_champs);
                                 
                                 // Try each champion in ban priority order
                                 for ban_id in ban_list {
+                                    eprintln!("[DEBUG] BAN: Checking champion {}", ban_id);
+                                    
                                     // Skip if already banned
                                     if banned_champs.contains(ban_id) {
+                                        eprintln!("[DEBUG] BAN: {} already banned, skip", ban_id);
                                         continue;
                                     }
                                     
                                     // Skip if we already failed this ban (API rejected it)
                                     if failed_ban_ids.contains(ban_id) {
+                                        eprintln!("[DEBUG] BAN: {} in failed list, skip", ban_id);
                                         continue;
                                     }
                                     
+                                    eprintln!("[DEBUG] BAN: >>> CALLING ban_champion for {}", ban_id);
                                     *state.status.lock().await = format!("Banning...");
                                     last_ban_attempt = Some(Instant::now());
                                     
                                     // Try to ban this champion
-                                    if ban_champion(&state, *ban_id).await {
+                                    let ban_result = ban_champion(&state, *ban_id).await;
+                                    eprintln!("[DEBUG] BAN: ban_champion returned {}", ban_result);
+                                    
+                                    if ban_result {
                                         *state.status.lock().await = "Banned champion!".to_string();
                                         my_ban_completed = true;
-                                        break;
+                                        eprintln!("[DEBUG] BAN: SUCCESS! my_ban_completed=true");
+                                            break;
                                     } else {
                                         // Ban failed - mark this champion and try next
+                                        eprintln!("[DEBUG] BAN: FAILED, adding to failed_ids");
                                         failed_ban_ids.push(*ban_id);
                                         continue;
                                     }
+                                        }
+                                    }
                                 }
                             }
+
+                    // === AUTO HOVER ===
+                    // Only hover ONCE per pick phase - respect user's manual changes
+                    let auto_hover_enabled = *state.auto_hover_enabled.lock().await;
+                    eprintln!("[DEBUG] HOVER CHECK: enabled={}, is_pick_turn={}, hover_attempted={}", auto_hover_enabled, is_pick_turn, hover_attempted);
+                    
+                    if auto_hover_enabled && is_pick_turn && !hover_attempted {
+                        eprintln!("[DEBUG] Attempting to hover - first time this session");
+                        // Find and hover the best available champion (only once)
+                                for champ_id in &role_prefs.preferred_champions {
+                            if !is_champion_available(&state, *champ_id).await {
+                                eprintln!("[DEBUG] Champion {} not available", champ_id);
+                                continue;
+                            }
+                            
+                            eprintln!("[DEBUG] Calling hover_champion for {}", champ_id);
+                                        if hover_champion(&state, *champ_id).await {
+                                            hovered_champion = Some(*champ_id);
+                                hover_attempted = true; // Don't hover again, respect user changes
+                                eprintln!("[DEBUG] Hover SUCCESS - hover_attempted now TRUE");
+                                *state.status.lock().await = "Hovering champion".to_string();
+                                break;
+                                        }
+                                    }
+                        // Even if we couldn't find an available champion, mark as attempted
+                        if !hover_attempted {
+                            eprintln!("[DEBUG] No champion could be hovered, marking as attempted anyway");
+                            hover_attempted = true;
                         }
                     }
 
-                    // === AUTO HOVER ===
-                    let auto_hover_enabled = *state.auto_hover_enabled.lock().await;
+                    // === AUTO LOCK ===
+                    // Lock when 3 seconds or less remain - respects user's champion choice
+                    // RELAXED: Don't require is_pick_turn - trust the timer!
+                    let auto_select_enabled = *state.auto_select_enabled.lock().await;
+                    eprintln!("[DEBUG] LOCK CHECK: enabled={}, lock_attempted={}, time_left_secs={}", 
+                        auto_select_enabled, lock_attempted, time_left_secs);
                     
-                    if auto_hover_enabled && is_pick_turn {
-                        // Check if currently hovered champion is still available
-                        if let Some(hovered) = hovered_champion {
-                            if !is_champion_available(&state, hovered).await {
-                                // Hovered champion is no longer available, clear it
-                                hovered_champion = None;
-                            }
-                        }
+                    // Trust the timer, not isInProgress
+                    if auto_select_enabled && !lock_attempted && time_left_secs <= 3 {
+                        eprintln!("[DEBUG] Time <= 3s, attempting to lock current champion");
+                        *state.status.lock().await = format!("Locking in {}s...", time_left_secs);
                         
-                        // Find and hover the best available champion
-                        if hovered_champion.is_none() {
+                        // Lock whatever champion the user currently has selected
+                        // This respects any manual changes they made
+                        if lock_current_champion(&state).await {
+                            lock_attempted = true;
+                            *state.status.lock().await = "Locked in champion!".to_string();
+                            eprintln!("[DEBUG] Lock SUCCESS");
+                        } else {
+                            eprintln!("[DEBUG] Lock failed - trying hover+lock fallback");
+                            // If no champion is selected, try to hover+lock our first preference
                             for champ_id in &role_prefs.preferred_champions {
                                 if !is_champion_available(&state, *champ_id).await {
                                     continue;
                                 }
                                 
                                 if hover_champion(&state, *champ_id).await {
-                                    hovered_champion = Some(*champ_id);
-                                    *state.status.lock().await = "Hovering champion".to_string();
-                                    break;
-                                }
-                            }
-                        }
-                    }
-
-                    // === AUTO LOCK ===
-                    // Only lock the hovered champion - hover decides, lock follows
-                    let auto_select_enabled = *state.auto_select_enabled.lock().await;
-                    
-                    if auto_select_enabled && locked_champion.is_none() && is_pick_turn {
-                        // Check cooldown (1 second between lock attempts)
-                        let can_attempt_lock = match last_lock_attempt {
-                            Some(last) => last.elapsed() > std::time::Duration::from_secs(1),
-                            None => true,
-                        };
-                        
-                        if can_attempt_lock {
-                            if let Some(hovered) = hovered_champion {
-                                // Verify hovered champion is still available
-                                if is_champion_available(&state, hovered).await {
-                                    last_lock_attempt = Some(Instant::now());
+                                    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
                                     
-                                    if select_champion(&state, hovered).await {
-                                        locked_champion = Some(hovered);
+                                    if lock_current_champion(&state).await {
+                                        lock_attempted = true;
                                         *state.status.lock().await = "Locked in champion!".to_string();
+                                        eprintln!("[DEBUG] Fallback lock SUCCESS");
                                     }
-                                    // If lock failed, we'll retry on next loop after cooldown
-                                } else {
-                                    // Hovered champion no longer available, clear it
-                                    hovered_champion = None;
-                                }
-                            } else {
-                                // No hover yet - try to hover and lock first available
-                                for champ_id in &role_prefs.preferred_champions {
-                                    if !is_champion_available(&state, *champ_id).await {
-                                        continue;
-                                    }
-                                    
-                                    // Hover first
-                                    if hover_champion(&state, *champ_id).await {
-                                        hovered_champion = Some(*champ_id);
-                                        // Wait a moment for hover to register
-                                        tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
-                                        
-                                        last_lock_attempt = Some(Instant::now());
-                                        if select_champion(&state, *champ_id).await {
-                                            locked_champion = Some(*champ_id);
-                                            *state.status.lock().await = "Locked in champion!".to_string();
+                                            break;
                                         }
-                                        break;
                                     }
                                 }
-                            }
-                        }
+                    } else if auto_select_enabled && time_left_secs > 3 && !lock_attempted {
+                        // Show countdown when waiting to lock
+                        *state.status.lock().await = format!("Pick phase - Locking at 3s ({}s left)", time_left_secs);
                     }
                 } else {
                     // No preferences found
@@ -953,6 +1096,8 @@ async fn champion_select_loop(state: AppState) {
             hovered_champion = None;
             locked_champion = None;
             my_ban_completed = false;
+            hover_attempted = false;
+            lock_attempted = false;
             last_phase = None;
             last_ban_attempt = None;
             last_lock_attempt = None;
@@ -982,7 +1127,7 @@ async fn auto_accept_loop(state: AppState) {
 
         // Check if in champion select - if so, don't overwrite status
         let in_champ_select = is_in_champion_select(&state).await;
-        
+
         // Check for match
         let match_found = check_match_found(&state).await;
         *state.match_found.lock().await = match_found;
